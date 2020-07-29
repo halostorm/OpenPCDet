@@ -40,6 +40,17 @@ class MsdDataset(DatasetTemplate):
         self.msd_infos = []
         self.include_msd_data(self.mode)
 
+    def set_split(self, split):
+        super().__init__(
+            dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training,
+            root_path=self.root_path, logger=self.logger
+        )
+        self.split = split
+        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+
+        split_dir = self.root_path / (self.split + '.txt')
+        self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+
     def include_msd_data(self, mode):
         if self.logger is not None:
             self.logger.info('Loading MSD dataset')
@@ -126,24 +137,25 @@ class MsdDataset(DatasetTemplate):
             if has_label:
                 obj_list = self.get_label(sample_idx)
                 annotations = {}
-                annotations['type'] = np.array([obj.type for obj in obj_list])
+                annotations['name'] = np.array([obj.type for obj in obj_list])
                 annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
-                annotations['size'] = np.concatenate([obj.size.reshape(1, 3) for obj in obj_list], axis=0)
+                annotations['dimensions'] = np.concatenate([obj.size.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation'] = np.concatenate([obj.rota.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['heading'] = np.array([obj.heading for obj in obj_list])
                 annotations['corners'] = np.concatenate([obj.corners.reshape(8, 3) for obj in obj_list], axis=0)
-                annotations['alpha'] = np.array([obj.alpha for obj in obj_list])
+                annotations['rotation_z'] = np.array([obj.rotation_z for obj in obj_list])
                 annotations['score'] = np.array([obj.score for obj in obj_list])
+                annotations['difficulty'] = np.array([obj.level for obj in obj_list], np.int32)
 
                 num_objects = len([obj.type for obj in obj_list if obj.type != 'DontCare'])
-                num_gt = len(annotations['type'])
+                num_gt = len(annotations['name'])
                 index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
                 annotations['index'] = np.array(index, dtype=np.int32)
-                locs = annotations['location'][:num_objects]
-                sizes = annotations['size'][:num_objects]
-                headings = annotations['heading'][:num_objects].reshape(-1, 1)
+                locs = annotations['location'][:num_gt]
+                dimensions = annotations['dimensions'][:num_gt]
+                headings = annotations['heading'][:num_gt].reshape(-1, 1)
 
-                gt_boxes_lidar = np.concatenate([locs, sizes, headings], axis=1)
+                gt_boxes_lidar = np.concatenate([locs, dimensions, headings], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
@@ -151,7 +163,7 @@ class MsdDataset(DatasetTemplate):
                 if count_inside_pts:
                     pcloud = self.get_lidar(sample_idx)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
-                    for k in range(num_objects):
+                    for k in range(num_gt):
                         points_in_gt = parse_points(pcloud, gt_boxes_lidar[k])
                         num_points_in_gt[k] = points_in_gt.shape[0]
                     annotations['num_points_in_gt'] = num_points_in_gt
@@ -181,7 +193,8 @@ class MsdDataset(DatasetTemplate):
             sample_idx = info['point_cloud']['lidar_idx']
             points = self.get_lidar(sample_idx)
             annos = info['annos']
-            types = annos['type']
+            types = annos['name']
+            difficulty = annos['difficulty']
             gt_boxes = annos['gt_boxes_lidar']
 
             num_obj = gt_boxes.shape[0]
@@ -200,9 +213,9 @@ class MsdDataset(DatasetTemplate):
 
                 if (used_classes is None) or types[i] in used_classes:
                     db_path = str(filepath.relative_to(self.root_path))  # gt_database/xxxxx.bin
-                    db_info = {'type': types[i], 'path': db_path, 'image_idx': sample_idx, 'gt_idx': i,
+                    db_info = {'name': types[i], 'path': db_path, 'image_idx': sample_idx, 'gt_idx': i,
                                'box3d_lidar': gt_boxes[i], 'num_points_in_gt': gt_points.shape[0],
-                               'score': annos['score'][i]}
+                               'difficulty': difficulty[i], 'score': annos['score'][i]}
                     if types[i] in all_db_infos:
                         all_db_infos[types[i]].append(db_info)
                     else:
@@ -232,9 +245,9 @@ class MsdDataset(DatasetTemplate):
 
         def get_template_prediction(num_samples):
             ret_dict = {
-                'type': np.zeros(num_samples), 'heading': np.zeros(num_samples),
-                'size': np.zeros([num_samples, 3]),
-                'location': np.zeros([num_samples, 3]), 'alpha': np.zeros(num_samples),
+                'name': np.zeros(num_samples), 'heading': np.zeros(num_samples),
+                'dimensions': np.zeros([num_samples, 3]),
+                'location': np.zeros([num_samples, 3]), 'rotation_z': np.zeros(num_samples),
                 'score': np.zeros(num_samples), 'boxes_lidar': np.zeros([num_samples, 7])
             }
             return ret_dict
@@ -247,9 +260,9 @@ class MsdDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            pred_dict['type'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['alpha'] = np.arctan2(pred_boxes[:, 1], pred_boxes[:, 0])
-            pred_dict['size'] = pred_boxes[:, 3:6]
+            pred_dict['name'] = np.array(class_names)[pred_labels - 1]
+            pred_dict['rotation_z'] = np.arctan2(pred_boxes[:, 1], pred_boxes[:, 0])
+            pred_dict['dimensions'] = pred_boxes[:, 3:6]
             pred_dict['location'] = pred_boxes[:, 0:3]
             pred_dict['heading'] = pred_boxes[:, 6]
             pred_dict['score'] = pred_scores
@@ -269,13 +282,13 @@ class MsdDataset(DatasetTemplate):
                 cur_det_file = output_path / ('%s.txt' % frame_id)
                 with open(cur_det_file, 'w') as f:
                     loc = single_pred_dict['location']
-                    size = single_pred_dict['size']  # lhw -> hwl
+                    dimensions = single_pred_dict['dimensions']  # lhw -> hwl
 
                     for idx in range(len(bbox)):
                         print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f'
-                              % (single_pred_dict['type'][idx], single_pred_dict['heading'][idx],
-                                 size[idx][0], size[idx][1], size[idx][2], loc[idx][0],
-                                 loc[idx][1], loc[idx][2], single_pred_dict['alpha'][idx],
+                              % (single_pred_dict['name'][idx], single_pred_dict['heading'][idx],
+                                 dimensions[idx][0], dimensions[idx][1], dimensions[idx][2], loc[idx][0],
+                                 loc[idx][1], loc[idx][2], single_pred_dict['rotation_z'][idx],
                                  single_pred_dict['score'][idx]), file=f)
 
         return annos
@@ -308,9 +321,9 @@ class MsdDataset(DatasetTemplate):
         if 'annos' in info:
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='DontCare')
-            loc, size, rots = annos['location'], annos['size'], annos['heading']
-            gt_names = annos['type']
-            gt_boxes_lidar = np.concatenate([loc, size, rots[..., np.newaxis]], axis=1).astype(np.float32)
+            loc, dimensions, rots = annos['location'], annos['dimensions'], annos['heading']
+            gt_names = annos['name']
+            gt_boxes_lidar = np.concatenate([loc, dimensions, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
             input_dict.update({
                 'gt_names': gt_names,
@@ -327,16 +340,41 @@ class MsdDataset(DatasetTemplate):
 
 def create_msd_infos(dataset_cfg, class_names, data_path, save_path, workers=1):
     dataset = MsdDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
-    info_filename = save_path / 'msd_infos.pkl'
+    train_split, val_split = 'train', 'val'
+
+    train_filename = save_path / ('msd_infos_%s.pkl' % train_split)
+    val_filename = save_path / ('msd_infos_%s.pkl' % val_split)
+    trainval_filename = save_path / 'msd_infos_trainval.pkl'
+    test_filename = save_path / 'msd_infos_test.pkl'
 
     print('---------------Start to generate data infos---------------')
+
+    dataset.set_split(train_split)
     msd_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
-    with open(info_filename, 'wb') as f:
+    with open(train_filename, 'wb') as f:
         pickle.dump(msd_infos_train, f)
-    print('Msd info train file is saved to %s' % info_filename)
+    print('msd info train file is saved to %s' % train_filename)
+
+    dataset.set_split(val_split)
+    msd_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    with open(val_filename, 'wb') as f:
+        pickle.dump(msd_infos_val, f)
+    print('msd info val file is saved to %s' % val_filename)
+
+    with open(trainval_filename, 'wb') as f:
+        pickle.dump(msd_infos_train + msd_infos_val, f)
+    print('msd info trainval file is saved to %s' % trainval_filename)
+
+    dataset.set_split('test')
+    msd_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
+    with open(test_filename, 'wb') as f:
+        pickle.dump(msd_infos_test, f)
+    print('msd info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
-    dataset.create_groundtruth_database(info_filename)
+    dataset.set_split(train_split)
+    dataset.create_groundtruth_database(train_filename, split=train_split)
+
     print('---------------Data preparation Done---------------')
 
 

@@ -17,7 +17,7 @@ def get_objects_from_label(label_file):
 
 
 LIDAR_TYPE = ['Car', 'Truck', 'Bus', 'Cyclist', 'Pedestrian',
-              'Tricar', 'TrafficCone', 'Unknow', 'Dont_care', '/',
+              'Tricar', 'TrafficCone', 'Unknow', 'DontCare', '/',
               'Car', 'Truck', 'Bus', 'Tricar', 'Other']
 
 
@@ -29,8 +29,9 @@ class Object3d(object):
         self.heading = float(value['rpy'][2])
         self.size = np.array(value['size'])
         self.score = value['score'] if 'score' in value else -1
-        self.alpha = atan2(self.loc[1], self.loc[0])
+        self.rotation_z = atan2(self.loc[1], self.loc[0])
         # self.points_num = value['points_num']
+        self.level = 0
         self.get_corners()
 
     def get_corners(self):
