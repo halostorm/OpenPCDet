@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 import numpy as np
 from pypcd import pypcd
-from geometry import *
+from .geometry import *
 import random
 import numba
 
@@ -30,7 +30,7 @@ class Object3d(object):
         self.size = np.array(value['size'])
         self.score = value['score'] if 'score' in value else -1
         self.alpha = atan2(self.loc[1], self.loc[0])
-        self.points_num = value['points_num']
+        # self.points_num = value['points_num']
         self.get_corners()
 
     def get_corners(self):

@@ -7,7 +7,8 @@ from ..dataset import DatasetTemplate
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from pypcd import pypcd
 
-import calibration_msd, object3d_msd
+from .calibration_msd import *
+from .object3d_msd import *
 
 
 def read_pcd(pcd_path):
@@ -33,7 +34,6 @@ class MsdDataset(DatasetTemplate):
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
-
         split_dir = self.root_path / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
@@ -74,12 +74,12 @@ class MsdDataset(DatasetTemplate):
     def get_label(self, idx):
         label_file = self.root_split_path / 'gt' / ('%s.json' % idx)
         assert label_file.exists()
-        return object3d_msd.get_objects_from_label(label_file)
+        return get_objects_from_label(label_file)
 
     def get_calib(self, idx):
         calib_file = self.root_split_path / 'calib' / ('%s.json' % idx)
         assert calib_file.exists()
-        return calibration_msd.Calibration(calib_file)
+        return Calibration(calib_file)
 
     def get_road_plane(self, idx):
         plane_file = self.root_split_path / 'planes' / ('%s.json' % idx)
@@ -131,7 +131,7 @@ class MsdDataset(DatasetTemplate):
                 annotations['size'] = np.concatenate([obj.size.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation'] = np.concatenate([obj.rota.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['heading'] = np.array([obj.heading for obj in obj_list])
-                annotations['corners'] = np.concatenate([obj.corners.reshape(1, 4) for obj in obj_list], axis=0)
+                annotations['corners'] = np.concatenate([obj.corners.reshape(8, 3) for obj in obj_list], axis=0)
                 annotations['alpha'] = np.array([obj.alpha for obj in obj_list])
                 annotations['score'] = np.array([obj.score for obj in obj_list])
 
@@ -141,7 +141,7 @@ class MsdDataset(DatasetTemplate):
                 annotations['index'] = np.array(index, dtype=np.int32)
                 locs = annotations['location'][:num_objects]
                 sizes = annotations['size'][:num_objects]
-                headings = annotations['heading'][:num_objects]
+                headings = annotations['heading'][:num_objects].reshape(-1, 1)
 
                 gt_boxes_lidar = np.concatenate([locs, sizes, headings], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
@@ -152,7 +152,7 @@ class MsdDataset(DatasetTemplate):
                     pcloud = self.get_lidar(sample_idx)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
                     for k in range(num_objects):
-                        points_in_gt = object3d_msd.parse_points(pcloud, gt_boxes_lidar)
+                        points_in_gt = parse_points(pcloud, gt_boxes_lidar[k])
                         num_points_in_gt[k] = points_in_gt.shape[0]
                     annotations['num_points_in_gt'] = num_points_in_gt
 
@@ -232,10 +232,9 @@ class MsdDataset(DatasetTemplate):
 
         def get_template_prediction(num_samples):
             ret_dict = {
-                'name': np.zeros(num_samples), 'truncated': np.zeros(num_samples),
-                'occluded': np.zeros(num_samples), 'alpha': np.zeros(num_samples),
-                'bbox': np.zeros([num_samples, 4]), 'dimensions': np.zeros([num_samples, 3]),
-                'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples),
+                'type': np.zeros(num_samples), 'heading': np.zeros(num_samples),
+                'size': np.zeros([num_samples, 3]),
+                'location': np.zeros([num_samples, 3]), 'alpha': np.zeros(num_samples),
                 'score': np.zeros(num_samples), 'boxes_lidar': np.zeros([num_samples, 7])
             }
             return ret_dict
@@ -248,19 +247,11 @@ class MsdDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            calib = batch_dict['calib'][batch_index]
-            image_shape = batch_dict['image_shape'][batch_index]
-            pred_boxes_camera = box_utils.boxes3d_lidar_to_msd_camera(pred_boxes, calib)
-            pred_boxes_img = box_utils.boxes3d_msd_camera_to_imageboxes(
-                pred_boxes_camera, calib, image_shape=image_shape
-            )
-
-            pred_dict['name'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes_camera[:, 6]
-            pred_dict['bbox'] = pred_boxes_img
-            pred_dict['dimensions'] = pred_boxes_camera[:, 3:6]
-            pred_dict['location'] = pred_boxes_camera[:, 0:3]
-            pred_dict['rotation_y'] = pred_boxes_camera[:, 6]
+            pred_dict['type'] = np.array(class_names)[pred_labels - 1]
+            pred_dict['alpha'] = np.arctan2(pred_boxes[:, 1], pred_boxes[:, 0])
+            pred_dict['size'] = pred_boxes[:, 3:6]
+            pred_dict['location'] = pred_boxes[:, 0:3]
+            pred_dict['heading'] = pred_boxes[:, 6]
             pred_dict['score'] = pred_scores
             pred_dict['boxes_lidar'] = pred_boxes
 
@@ -277,16 +268,14 @@ class MsdDataset(DatasetTemplate):
             if output_path is not None:
                 cur_det_file = output_path / ('%s.txt' % frame_id)
                 with open(cur_det_file, 'w') as f:
-                    bbox = single_pred_dict['bbox']
                     loc = single_pred_dict['location']
-                    dims = single_pred_dict['dimensions']  # lhw -> hwl
+                    size = single_pred_dict['size']  # lhw -> hwl
 
                     for idx in range(len(bbox)):
-                        print('%s -1 -1 %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f'
-                              % (single_pred_dict['name'][idx], single_pred_dict['alpha'][idx],
-                                 bbox[idx][0], bbox[idx][1], bbox[idx][2], bbox[idx][3],
-                                 dims[idx][1], dims[idx][2], dims[idx][0], loc[idx][0],
-                                 loc[idx][1], loc[idx][2], single_pred_dict['rotation_y'][idx],
+                        print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f'
+                              % (single_pred_dict['type'][idx], single_pred_dict['heading'][idx],
+                                 size[idx][0], size[idx][1], size[idx][2], loc[idx][0],
+                                 loc[idx][1], loc[idx][2], single_pred_dict['alpha'][idx],
                                  single_pred_dict['score'][idx]), file=f)
 
         return annos
@@ -310,27 +299,18 @@ class MsdDataset(DatasetTemplate):
         sample_idx = info['point_cloud']['lidar_idx']
 
         points = self.get_lidar(sample_idx)
-        calib = self.get_calib(sample_idx)
-
-        img_shape = info['image']['image_shape']
-        if self.dataset_cfg.FOV_POINTS_ONLY:
-            pts_rect = calib.lidar_to_rect(points[:, 0:3])
-            fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
-            points = points[fov_flag]
 
         input_dict = {
             'points': points,
             'frame_id': sample_idx,
-            'calib': calib,
         }
 
         if 'annos' in info:
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='DontCare')
-            loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
-            gt_names = annos['name']
-            gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-            gt_boxes_lidar = box_utils.boxes3d_msd_camera_to_lidar(gt_boxes_camera, calib)
+            loc, size, rots = annos['location'], annos['size'], annos['heading']
+            gt_names = annos['type']
+            gt_boxes_lidar = np.concatenate([loc, size, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
             input_dict.update({
                 'gt_names': gt_names,
@@ -342,11 +322,10 @@ class MsdDataset(DatasetTemplate):
 
         data_dict = self.prepare_data(data_dict=input_dict)
 
-        data_dict['image_shape'] = img_shape
         return data_dict
 
 
-def create_msd_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
+def create_msd_infos(dataset_cfg, class_names, data_path, save_path, workers=1):
     dataset = MsdDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
     info_filename = save_path / 'msd_infos.pkl'
 
