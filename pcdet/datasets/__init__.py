@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 from .dataset import DatasetTemplate
 from .kitti.kitti_dataset import KittiDataset
+from .msd.msd_dataset import MsdDataset
 from torch.utils.data import DistributedSampler as _DistributedSampler
 from pcdet.utils import common_utils
 
