@@ -58,6 +58,7 @@ class Object3d(object):
         pts_rota = np.dot(rota_matrix, np.transpose(np.array(pts_size)))
         self.corners = np.transpose(pts_rota) + self.loc
 
+
 @numba.njit
 def get_corners_offset(dimension):
     """

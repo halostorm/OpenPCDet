@@ -46,7 +46,7 @@ def rotate_points_along_z(points, angle):
     zeros = angle.new_zeros(points.shape[0])
     ones = angle.new_ones(points.shape[0])
     rot_matrix = torch.stack((
-        cosa,  sina, zeros,
+        cosa, sina, zeros,
         -sina, cosa, zeros,
         zeros, zeros, ones
     ), dim=1).view(-1, 3, 3).float()
@@ -157,6 +157,7 @@ def init_dist_pytorch(batch_size, tcp_port, local_rank, backend='nccl'):
     rank = dist.get_rank()
     return batch_size_each_gpu, rank
 
+
 def get_dist_info():
     if torch.__version__ < '1.0':
         initialized = dist._initialized
@@ -173,6 +174,7 @@ def get_dist_info():
         world_size = 1
     return rank, world_size
 
+
 def merge_results_dist(result_part, size, tmpdir):
     rank, world_size = get_dist_info()
     os.makedirs(tmpdir, exist_ok=True)
@@ -180,10 +182,10 @@ def merge_results_dist(result_part, size, tmpdir):
     dist.barrier()
     pickle.dump(result_part, open(os.path.join(tmpdir, 'result_part_{}.pkl'.format(rank)), 'wb'))
     dist.barrier()
-    
+
     if rank != 0:
         return None
-    
+
     part_list = []
     for i in range(world_size):
         part_file = os.path.join(tmpdir, 'result_part_{}.pkl'.format(i))
@@ -191,7 +193,7 @@ def merge_results_dist(result_part, size, tmpdir):
 
     ordered_results = []
     for res in zip(*part_list):
-        ordered_results.extend(list(res)) 
+        ordered_results.extend(list(res))
     ordered_results = ordered_results[:size]
     shutil.rmtree(tmpdir)
     return ordered_results

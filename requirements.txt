@@ -6,3 +6,6 @@ easydict
 pyyaml
 scikit-image
 tqdm
+scipy
+pypcd -- https://gitlab.momenta.works/yinxiaochuan/pypcd
+

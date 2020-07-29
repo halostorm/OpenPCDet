@@ -7,6 +7,7 @@ class ATSSTargetAssigner(object):
     """
     Reference: https://arxiv.org/abs/1912.02424
     """
+
     def __init__(self, topk, box_coder, match_height=False):
         self.topk = topk
         self.box_coder = box_coder

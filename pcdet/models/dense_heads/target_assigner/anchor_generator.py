@@ -50,11 +50,12 @@ class AnchorGenerator(object):
             anchor_size = anchor_size.view(1, 1, 1, -1, 3).repeat([*anchors.shape[0:3], 1, 1])
             anchors = torch.cat((anchors, anchor_size), dim=-1)
             anchors = anchors[:, :, :, :, None, :].repeat(1, 1, 1, 1, num_anchor_rotation, 1)
-            anchor_rotation = anchor_rotation.view(1, 1, 1, 1, -1, 1).repeat([*anchors.shape[0:3], num_anchor_size, 1, 1])
+            anchor_rotation = anchor_rotation.view(1, 1, 1, 1, -1, 1).repeat(
+                [*anchors.shape[0:3], num_anchor_size, 1, 1])
             anchors = torch.cat((anchors, anchor_rotation), dim=-1)  # [x, y, z, num_size, num_rot, 7]
 
             anchors = anchors.permute(2, 1, 0, 3, 4, 5).contiguous()
-            #anchors = anchors.view(-1, anchors.shape[-1])
+            # anchors = anchors.view(-1, anchors.shape[-1])
             anchors[..., 2] += anchors[..., 5] / 2  # shift to box centers
             all_anchors.append(anchors)
         return all_anchors, num_anchors_per_location
@@ -62,6 +63,7 @@ class AnchorGenerator(object):
 
 if __name__ == '__main__':
     from easydict import EasyDict
+
     config = [
         EasyDict({
             'anchor_sizes': [[2.1, 4.7, 1.7], [0.86, 0.91, 1.73], [0.84, 1.78, 1.78]],
@@ -75,5 +77,6 @@ if __name__ == '__main__':
         anchor_generator_config=config
     )
     import pdb
+
     pdb.set_trace()
     A.generate_anchors([[188, 188]])

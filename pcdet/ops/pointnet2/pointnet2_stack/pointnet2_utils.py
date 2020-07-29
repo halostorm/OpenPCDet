@@ -131,7 +131,8 @@ class QueryAndGroup(nn.Module):
         Returns:
             new_features: (M1 + M2, C, nsample) tensor
         """
-        assert xyz.shape[0] == xyz_batch_cnt.sum(), 'xyz: %s, xyz_batch_cnt: %s' % (str(xyz.shape), str(new_xyz_batch_cnt))
+        assert xyz.shape[0] == xyz_batch_cnt.sum(), 'xyz: %s, xyz_batch_cnt: %s' % (
+        str(xyz.shape), str(new_xyz_batch_cnt))
         assert new_xyz.shape[0] == new_xyz_batch_cnt.sum(), \
             'new_xyz: %s, new_xyz_batch_cnt: %s' % (str(new_xyz.shape), str(new_xyz_batch_cnt))
 
@@ -143,7 +144,8 @@ class QueryAndGroup(nn.Module):
         grouped_xyz[empty_ball_mask] = 0
 
         if features is not None:
-            grouped_features = grouping_operation(features, xyz_batch_cnt, idx, new_xyz_batch_cnt)  # (M1 + M2, C, nsample)
+            grouped_features = grouping_operation(features, xyz_batch_cnt, idx,
+                                                  new_xyz_batch_cnt)  # (M1 + M2, C, nsample)
             grouped_features[empty_ball_mask] = 0
             if self.use_xyz:
                 new_features = torch.cat([grouped_xyz, grouped_features], dim=1)  # (M1 + M2 ..., C + 3, nsample)
@@ -183,7 +185,6 @@ class FurthestPointSampling(Function):
 
 
 furthest_point_sample = FurthestPointSampling.apply
-
 
 if __name__ == '__main__':
     pass

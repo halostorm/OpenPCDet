@@ -9,6 +9,7 @@ class PointIntraPartOffsetHead(PointHeadTemplate):
     Reference Paper: https://arxiv.org/abs/1907.03670
     From Points to Parts: 3D Object Detection from Point Cloud with Part-aware and Part-aggregation Network
     """
+
     def __init__(self, num_class, input_channels, model_cfg, **kwargs):
         super().__init__(model_cfg=model_cfg, num_class=num_class)
         self.cls_layers = self.make_fc_layers(

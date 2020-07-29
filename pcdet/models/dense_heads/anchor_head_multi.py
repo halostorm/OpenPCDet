@@ -62,7 +62,8 @@ class SingleHead(BaseBEVBackbone):
             dir_cls_preds = self.conv_dir_cls(spatial_features_2d)
             if self.use_multihead:
                 dir_cls_preds = dir_cls_preds.view(
-                    -1, self.num_anchors_per_location, self.model_cfg.NUM_DIR_BINS, H, W).permute(0, 1, 3, 4, 2).contiguous()
+                    -1, self.num_anchors_per_location, self.model_cfg.NUM_DIR_BINS, H, W).permute(0, 1, 3, 4,
+                                                                                                  2).contiguous()
                 dir_cls_preds = dir_cls_preds.view(batch_size, -1, self.model_cfg.NUM_DIR_BINS)
             else:
                 dir_cls_preds = dir_cls_preds.permute(0, 2, 3, 1).contiguous()
@@ -78,9 +79,11 @@ class SingleHead(BaseBEVBackbone):
 
 
 class AnchorHeadMulti(AnchorHeadTemplate):
-    def __init__(self, model_cfg, input_channels, num_class, class_names, grid_size, point_cloud_range, predict_boxes_when_training=True):
+    def __init__(self, model_cfg, input_channels, num_class, class_names, grid_size, point_cloud_range,
+                 predict_boxes_when_training=True):
         super().__init__(
-            model_cfg=model_cfg, num_class=num_class, class_names=class_names, grid_size=grid_size, point_cloud_range=point_cloud_range, predict_boxes_when_training=predict_boxes_when_training
+            model_cfg=model_cfg, num_class=num_class, class_names=class_names, grid_size=grid_size,
+            point_cloud_range=point_cloud_range, predict_boxes_when_training=predict_boxes_when_training
         )
         self.model_cfg = model_cfg
         self.make_multihead(input_channels)
@@ -92,8 +95,10 @@ class AnchorHeadMulti(AnchorHeadTemplate):
         for rpn_head_cfg in rpn_head_cfgs:
             class_names.extend(rpn_head_cfg['HEAD_CLS_NAME'])
         for rpn_head_cfg in rpn_head_cfgs:
-            num_anchors_per_location = sum([self.num_anchors_per_location[class_names.index(head_cls)] for head_cls in rpn_head_cfg['HEAD_CLS_NAME']])
-            rpn_head = SingleHead(self.model_cfg, input_channels, self.num_class, num_anchors_per_location, self.box_coder.code_size, rpn_head_cfg)
+            num_anchors_per_location = sum([self.num_anchors_per_location[class_names.index(head_cls)] for head_cls in
+                                            rpn_head_cfg['HEAD_CLS_NAME']])
+            rpn_head = SingleHead(self.model_cfg, input_channels, self.num_class, num_anchors_per_location,
+                                  self.box_coder.code_size, rpn_head_cfg)
             rpn_heads.append(rpn_head)
         self.rpn_heads = nn.ModuleList(rpn_heads)
 
@@ -116,9 +121,9 @@ class AnchorHeadMulti(AnchorHeadTemplate):
             ret['dir_cls_preds'] = dir_cls_preds
         else:
             dir_cls_preds = None
- 
+
         self.forward_ret_dict.update(ret)
-       
+
         if self.training:
             targets_dict = self.assign_targets(
                 gt_boxes=data_dict['gt_boxes']

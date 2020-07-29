@@ -88,4 +88,3 @@ class StackSAModuleMSG(nn.Module):
         new_features = torch.cat(new_features_list, dim=1)  # (M1 + M2 ..., C)
 
         return new_xyz, new_features
-

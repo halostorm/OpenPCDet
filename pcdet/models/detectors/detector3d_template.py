@@ -19,7 +19,7 @@ class Detector3DTemplate(nn.Module):
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
-            'backbone_2d', 'dense_head',  'point_head', 'roi_head'
+            'backbone_2d', 'dense_head', 'point_head', 'roi_head'
         ]
 
     @property
@@ -200,7 +200,8 @@ class Detector3DTemplate(nn.Module):
                 raise NotImplementedError
             else:
                 cls_preds, label_preds = torch.max(cls_preds, dim=-1)
-                label_preds = batch_dict['roi_labels'][index] if batch_dict.get('has_class_labels', False) else label_preds + 1
+                label_preds = batch_dict['roi_labels'][index] if batch_dict.get('has_class_labels',
+                                                                                False) else label_preds + 1
 
                 selected, selected_scores = class_agnostic_nms(
                     box_scores=cls_preds, box_preds=box_preds,

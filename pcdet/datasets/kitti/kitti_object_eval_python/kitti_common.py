@@ -7,6 +7,7 @@ from collections import OrderedDict
 import numpy as np
 from skimage import io
 
+
 def get_image_index_str(img_idx):
     return "{:06d}".format(img_idx)
 
@@ -98,16 +99,16 @@ def get_kitti_image_info(path,
                 lines = f.readlines()
             P0 = np.array(
                 [float(info) for info in lines[0].split(' ')[1:13]]).reshape(
-                    [3, 4])
+                [3, 4])
             P1 = np.array(
                 [float(info) for info in lines[1].split(' ')[1:13]]).reshape(
-                    [3, 4])
+                [3, 4])
             P2 = np.array(
                 [float(info) for info in lines[2].split(' ')[1:13]]).reshape(
-                    [3, 4])
+                [3, 4])
             P3 = np.array(
                 [float(info) for info in lines[3].split(' ')[1:13]]).reshape(
-                    [3, 4])
+                [3, 4])
             if extend_matrix:
                 P0 = _extend_matrix(P0)
                 P1 = _extend_matrix(P1)
@@ -187,6 +188,7 @@ def filter_kitti_anno(image_anno,
                     np.logical_not(boxes_to_remove)])
     return img_filtered_annotations
 
+
 def filter_annos_low_score(image_annos, thresh):
     new_image_annos = []
     for anno in image_annos:
@@ -199,6 +201,7 @@ def filter_annos_low_score(image_annos, thresh):
                 anno[key][relevant_annotation_indices])
         new_image_annos.append(img_filtered_annotations)
     return new_image_annos
+
 
 def kitti_result_line(result_dict, precision=4):
     prec_float = "{" + ":.{}f".format(precision) + "}"
@@ -261,9 +264,9 @@ def add_difficulty_to_annos(info):
     occlusion = annos['occluded']
     truncation = annos['truncated']
     diff = []
-    easy_mask = np.ones((len(dims), ), dtype=np.bool)
-    moderate_mask = np.ones((len(dims), ), dtype=np.bool)
-    hard_mask = np.ones((len(dims), ), dtype=np.bool)
+    easy_mask = np.ones((len(dims),), dtype=np.bool)
+    moderate_mask = np.ones((len(dims),), dtype=np.bool)
+    hard_mask = np.ones((len(dims),), dtype=np.bool)
     i = 0
     for h, o, t in zip(height, occlusion, truncation):
         if o > max_occlusion[0] or h <= min_height[0] or t > max_trunc[0]:
@@ -317,7 +320,7 @@ def get_label_anno(label_path):
     # dimensions will convert hwl format to standard lhw(camera) format.
     annotations['dimensions'] = np.array(
         [[float(info) for info in x[8:11]] for x in content]).reshape(
-            -1, 3)[:, [2, 0, 1]]
+        -1, 3)[:, [2, 0, 1]]
     annotations['location'] = np.array(
         [[float(info) for info in x[11:14]] for x in content]).reshape(-1, 3)
     annotations['rotation_y'] = np.array(
@@ -327,6 +330,7 @@ def get_label_anno(label_path):
     else:
         annotations['score'] = np.zeros([len(annotations['bbox'])])
     return annotations
+
 
 def get_label_annos(label_folder, image_ids=None):
     if image_ids is None:
@@ -345,6 +349,7 @@ def get_label_annos(label_folder, image_ids=None):
         annos.append(get_label_anno(label_filename))
     return annos
 
+
 def area(boxes, add1=False):
     """Computes area of boxes.
 
@@ -356,7 +361,7 @@ def area(boxes, add1=False):
     """
     if add1:
         return (boxes[:, 2] - boxes[:, 0] + 1.0) * (
-            boxes[:, 3] - boxes[:, 1] + 1.0)
+                boxes[:, 3] - boxes[:, 1] + 1.0)
     else:
         return (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
 
@@ -407,5 +412,5 @@ def iou(boxes1, boxes2, add1=False):
     area2 = area(boxes2, add1)
     union = np.expand_dims(
         area1, axis=1) + np.expand_dims(
-            area2, axis=0) - intersect
+        area2, axis=0) - intersect
     return intersect / union

@@ -31,7 +31,7 @@ class AxisAlignedTargetAssigner(object):
 
         bbox_targets = []
         bbox_src_targets = []
-        cls_labels = [] 
+        cls_labels = []
         reg_weights = []
 
         batch_size = gt_boxes_with_classes.shape[0]
@@ -58,7 +58,7 @@ class AxisAlignedTargetAssigner(object):
                 else:
                     feature_map_size = anchors.shape[:3]
                     anchors = anchors.view(-1, anchors.shape[-1])
-                    
+
                 single_target = self.assign_targets_single(
                     anchors,
                     cur_gt[mask],
@@ -73,7 +73,7 @@ class AxisAlignedTargetAssigner(object):
                     'box_reg_targets': [t['box_reg_targets'].view(-1, self.box_coder.code_size) for t in target_list],
                     'reg_weights': [t['reg_weights'].view(-1) for t in target_list]
                 }
-                
+
                 target_dict['box_reg_targets'] = torch.cat(target_dict['box_reg_targets'], dim=0)
                 target_dict['box_cls_labels'] = torch.cat(target_dict['box_cls_labels'], dim=0).view(-1)
                 target_dict['reg_weights'] = torch.cat(target_dict['reg_weights'], dim=0).view(-1)
@@ -84,7 +84,7 @@ class AxisAlignedTargetAssigner(object):
                                         for t in target_list],
                     'reg_weights': [t['reg_weights'].view(*feature_map_size, -1) for t in target_list]
                 }
-            
+
                 target_dict['box_reg_targets'] = torch.cat(target_dict['box_reg_targets'],
                                                            dim=-2).view(-1, self.box_coder.code_size)
                 target_dict['box_cls_labels'] = torch.cat(target_dict['box_cls_labels'], dim=-1).view(-1)
@@ -93,9 +93,9 @@ class AxisAlignedTargetAssigner(object):
             bbox_targets.append(target_dict['box_reg_targets'])
             cls_labels.append(target_dict['box_cls_labels'])
             reg_weights.append(target_dict['reg_weights'])
-        
+
         bbox_targets = torch.stack(bbox_targets, dim=0)
-        
+
         cls_labels = torch.stack(cls_labels, dim=0)
         reg_weights = torch.stack(reg_weights, dim=0)
         all_targets_dict = {
@@ -107,11 +107,11 @@ class AxisAlignedTargetAssigner(object):
         return all_targets_dict
 
     def assign_targets_single(self, anchors,
-                         gt_boxes,
-                         gt_classes,
-                         matched_threshold=0.6,
-                         unmatched_threshold=0.45
-                        ):
+                              gt_boxes,
+                              gt_classes,
+                              matched_threshold=0.6,
+                              unmatched_threshold=0.45
+                              ):
 
         num_anchors = anchors.shape[0]
         num_gt = gt_boxes.shape[0]
@@ -119,7 +119,7 @@ class AxisAlignedTargetAssigner(object):
 
         labels = torch.ones((num_anchors,), dtype=torch.int32, device=anchors.device) * -1
         gt_ids = torch.ones((num_anchors,), dtype=torch.int32, device=anchors.device) * -1
-       
+
         if len(gt_boxes) > 0 and anchors.shape[0] > 0:
             anchor_by_gt_overlap = iou3d_nms_utils.boxes_iou3d_gpu(anchors[:, 0:7], gt_boxes[:, 0:7]) \
                 if self.match_height else box_utils.boxes3d_nearest_bev_iou(anchors[:, 0:7], gt_boxes[:, 0:7])
@@ -134,11 +134,11 @@ class AxisAlignedTargetAssigner(object):
             empty_gt_mask = gt_to_anchor_max == 0
             gt_to_anchor_max[empty_gt_mask] = -1
             anchors_with_max_overlap = torch.nonzero(anchor_by_gt_overlap == gt_to_anchor_max)[:, 0]
-            
+
             gt_inds_force = anchor_to_gt_argmax[anchors_with_max_overlap]
             labels[anchors_with_max_overlap] = gt_classes[gt_inds_force]
             gt_ids[anchors_with_max_overlap] = gt_inds_force.int()
-            
+
             pos_inds = anchor_to_gt_max >= matched_threshold
             gt_inds_over_thresh = anchor_to_gt_argmax[pos_inds]
             labels[pos_inds] = gt_classes[gt_inds_over_thresh]
@@ -148,7 +148,7 @@ class AxisAlignedTargetAssigner(object):
             bg_inds = torch.arange(num_anchors, device=anchors.device)
 
         fg_inds = torch.nonzero(labels > 0)[:, 0]
-   
+
         if self.pos_fraction is not None:
             num_fg = int(self.pos_fraction * self.sample_size)
             if len(fg_inds) > num_fg:
@@ -176,7 +176,7 @@ class AxisAlignedTargetAssigner(object):
             bbox_targets[fg_inds, :] = self.box_coder.encode_torch(fg_gt_boxes, fg_anchors)
 
         reg_weights = anchors.new_zeros((num_anchors,))
-        
+
         if self.norm_by_num_examples:
             num_examples = (labels >= 0).sum()
             num_examples = num_examples if num_examples > 1.0 else 1.0
@@ -190,5 +190,3 @@ class AxisAlignedTargetAssigner(object):
             'reg_weights': reg_weights,
         }
         return ret_dict
-
-

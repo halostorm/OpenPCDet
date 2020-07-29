@@ -9,6 +9,7 @@ class PointHeadSimple(PointHeadTemplate):
     Reference Paper: https://arxiv.org/abs/1912.13192
     PV-RCNN: Point-Voxel Feature Set Abstraction for 3D Object Detection
     """
+
     def __init__(self, num_class, input_channels, model_cfg, **kwargs):
         super().__init__(model_cfg=model_cfg, num_class=num_class)
         self.cls_layers = self.make_fc_layers(

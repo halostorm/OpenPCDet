@@ -36,6 +36,7 @@ def build_optimizer(model, optim_cfg):
 
 def build_scheduler(optimizer, total_iters_each_epoch, total_epochs, last_epoch, optim_cfg):
     decay_steps = [x * total_iters_each_epoch for x in optim_cfg.DECAY_STEP_LIST]
+
     def lr_lbmd(cur_epoch):
         cur_decay = 1
         for decay_step in decay_steps:

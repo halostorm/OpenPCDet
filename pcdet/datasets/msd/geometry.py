@@ -377,5 +377,3 @@ def undistort_point(x, y, K, distortion_coefficients):
     y = point[1, 0] / point[2, 0]
 
     return x, y
-
-
